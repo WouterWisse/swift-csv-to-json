@@ -1,3 +1,3 @@
 # CSVtoJSON
 
-A description of this package.
+Small CSV to JSON converter.
