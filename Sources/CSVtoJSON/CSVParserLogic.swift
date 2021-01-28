@@ -36,12 +36,9 @@ public final class CSVParser: CSVParserLogic {
     public func json(from string: String, withOptions options: JSONSerialization.WritingOptions = .prettyPrinted) throws -> String {
         let rows: [String] = string.components(separatedBy: NSCharacterSet.newlines).filter { !$0.isEmpty }
         
-        guard let header = rows.first else { throw CSVParserError.csvIsEmpty }
+        guard let header = rows.first?.colums else { throw CSVParserError.csvIsEmpty }
         guard rows.count >= 2 else { throw CSVParserError.csvOnlyContainsHeader }
-        guard header.count == rows.last?.count else { throw CSVParserError.csvAmountOfColumnsDoNotMatchHeader }
-        
-        // Use header components as keys.
-        let keys = header.components(separatedBy: CSVParserConstants.csvSeparator)
+        guard header.count == rows.last?.colums.count else { throw CSVParserError.csvAmountOfColumnsDoNotMatchHeader }
         
         // Drop the first row, that should be the header.
         let valueRows = rows.dropFirst()
@@ -52,7 +49,7 @@ public final class CSVParser: CSVParserLogic {
                 guard string.isNumber else { return string as AnyObject }
                 return string.isDecimalNumber ? Double(string) as AnyObject : Int(string) as AnyObject
             }
-            return Dictionary(keys: keys, values: values)
+            return Dictionary(keys: header, values: values)
         }
         
         return dictionaries.toJSONString(options: options)
@@ -70,7 +67,6 @@ public final class CSVParser: CSVParserLogic {
 // MARK: Private
 
 private extension CSVParser {
-    
     func stringFromFile(bundle: Bundle, fileName: String, fileExtension: String) throws -> String {
         guard let filePath = bundle.path(forResource: fileName, ofType: fileExtension) else { throw CSVParserError.invalidFilePath }
 
@@ -92,6 +88,10 @@ private extension String  {
     
     var isDecimalNumber: Bool {
         Int(Double(self)!) != Int(self)
+    }
+    
+    var colums: [String] {
+        components(separatedBy: CSVParserConstants.csvSeparator)
     }
 }
 
