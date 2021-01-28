@@ -31,6 +31,8 @@ public protocol CSVParserLogic {
 
 public final class CSVParser: CSVParserLogic {
     
+    public init() {}
+    
     public func json(from string: String, withOptions options: JSONSerialization.WritingOptions = .prettyPrinted) throws -> String {
         let rows: [String] = string.components(separatedBy: NSCharacterSet.newlines).filter { !$0.isEmpty }
         
@@ -94,7 +96,6 @@ private extension String  {
 }
 
 private extension Collection where Iterator.Element == [String: AnyObject] {
-    
     func toJSONString(options: JSONSerialization.WritingOptions = .prettyPrinted) -> String {
         if let array = self as? [[String: AnyObject]],
            let data = try? JSONSerialization.data(withJSONObject: array, options: options),
@@ -106,7 +107,6 @@ private extension Collection where Iterator.Element == [String: AnyObject] {
 }
 
 private extension Dictionary {
-
     init(keys: [Key], values: [Value]) {
         precondition(keys.count == values.count, "Keys and Values should match in count.")
         self.init()
