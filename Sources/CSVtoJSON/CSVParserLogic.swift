@@ -31,9 +31,13 @@ public protocol CSVParserLogic {
 
 public final class CSVParser: CSVParserLogic {
     
-    public init() {}
+    private let numberFormatter: NumberFormatter
     
-    public func json(from string: String, withOptions options: JSONSerialization.WritingOptions = .prettyPrinted) throws -> String {
+    public init(numberFormatter: NumberFormatter = NumberFormatter()) {
+        self.numberFormatter = numberFormatter
+    }
+    
+    public func json(from string: String, withOptions options: JSONSerialization.WritingOptions = .fragmentsAllowed) throws -> String {
         let rows: [String] = string.components(separatedBy: NSCharacterSet.newlines).filter { !$0.isEmpty }
         
         guard let header = rows.first?.colums else { throw CSVParserError.csvIsEmpty }
@@ -46,8 +50,8 @@ public final class CSVParser: CSVParserLogic {
         let dictionaries = valueRows.map { row -> Dictionary<String, AnyObject> in
             let stringValues = row.components(separatedBy: CSVParserConstants.csvSeparator)
             let values = stringValues.map { string -> AnyObject in
-                guard string.isNumber else { return string as AnyObject }
-                return string.isDecimalNumber ? Double(string) as AnyObject : Int(string) as AnyObject
+                guard let number = numberFormatter.number(from: string) else { return string as AnyObject }
+                return number
             }
             return Dictionary(keys: header, values: values)
         }
@@ -58,7 +62,7 @@ public final class CSVParser: CSVParserLogic {
     public func json(from file: String,
                      withExtension fileExtension: String = "csv",
                      inBundle bundle: Bundle = Bundle.main,
-                     withOptions options: JSONSerialization.WritingOptions = .prettyPrinted) throws -> String {
+                     withOptions options: JSONSerialization.WritingOptions = .fragmentsAllowed) throws -> String {
         let contents = try stringFromFile(bundle: bundle, fileName: file, fileExtension: fileExtension)
         return try json(from: contents, withOptions: options)
     }
@@ -82,14 +86,6 @@ private extension CSVParser {
 // MARK: Extensions
 
 private extension String  {
-    var isNumber: Bool {
-        !isEmpty && rangeOfCharacter(from: CharacterSet.decimalDigits.inverted) == nil
-    }
-    
-    var isDecimalNumber: Bool {
-        Int(Double(self)!) != Int(self)
-    }
-    
     var colums: [String] {
         components(separatedBy: CSVParserConstants.csvSeparator)
     }
@@ -97,6 +93,7 @@ private extension String  {
 
 private extension Collection where Iterator.Element == [String: AnyObject] {
     func toJSONString(options: JSONSerialization.WritingOptions = .prettyPrinted) -> String {
+        // TODO: Always an array?
         if let array = self as? [[String: AnyObject]],
            let data = try? JSONSerialization.data(withJSONObject: array, options: options),
            let string = String(data: data, encoding: String.Encoding.utf8) {
