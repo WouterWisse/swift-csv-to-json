@@ -29,6 +29,10 @@ final class CSVtoJSONTests: XCTestCase {
     
     func test_json_withStringWithDecimalNumber_shouldReturnValidJSON() {
         // Given
+        let numberFormatter = NumberFormatter()
+        numberFormatter.decimalSeparator = ","
+        sut = CSVParser(numberFormatter: numberFormatter)
+        
         let csvString = """
         brand;model;price
         Ferrari;LaFerrari;1000000,00
