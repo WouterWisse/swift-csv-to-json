@@ -7,10 +7,6 @@
 
 import Foundation
 
-private enum CSVParserConstants {
-    static let csvSeparator = ";"
-}
-
 public enum CSVParserError: Error {
     case invalidFilePath
     case invalidFileContent
@@ -19,36 +15,89 @@ public enum CSVParserError: Error {
     case csvAmountOfColumnsDoNotMatchHeader
 }
 
+public enum CSVParserValueSeparator {
+    case semicolon
+    case custom(string: String)
+    
+    var value: String {
+        switch self {
+        case .semicolon: return ";"
+        case .custom(string: let string): return string
+        }
+    }
+}
+
+public struct CSVParserOptions {
+    let valueSeparator: CSVParserValueSeparator
+    let numberDecimalSeparator: String
+    let numberThousandSeparator: String?
+    let jsonWritingOptions: JSONSerialization.WritingOptions
+    
+    public init(valueSeparator: CSVParserValueSeparator = .semicolon,
+         numberDecimalSeparator: String = ".",
+         numberThousandSeparator: String? = nil,
+         jsonWritingOptions: JSONSerialization.WritingOptions = .fragmentsAllowed) {
+        self.valueSeparator = valueSeparator
+        self.numberDecimalSeparator = numberDecimalSeparator
+        self.numberThousandSeparator = numberThousandSeparator
+        self.jsonWritingOptions = jsonWritingOptions
+    }
+}
+
 public protocol CSVParserLogic {
-    func json(from string: String, withOptions options: JSONSerialization.WritingOptions) throws -> String
+    func json(from string: String, options: CSVParserOptions) throws -> String
     func json(from file: String,
               withExtension fileExtension: String,
               inBundle bundle: Bundle,
-              withOptions options: JSONSerialization.WritingOptions) throws -> String
+              options: CSVParserOptions) throws -> String
+}
+
+extension CSVParserLogic {
+    func json(from string: String, options: CSVParserOptions = CSVParserOptions()) throws -> String {
+        try json(from: string, options: options)
+    }
+    
+    func json(from file: String,
+              withExtension fileExtension: String = "csv",
+              inBundle bundle: Bundle,
+              options: CSVParserOptions = CSVParserOptions()) throws -> String {
+        try json(from: file, withExtension: fileExtension, inBundle: bundle, options: options)
+    }
 }
 
 // MARK: CSVParserLogic
 
 public final class CSVParser: CSVParserLogic {
     
-    private let numberFormatter: NumberFormatter
+    private let numberFormatter: NumberFormatter = NumberFormatter()
     
-    public init(numberFormatter: NumberFormatter = NumberFormatter()) {
-        self.numberFormatter = numberFormatter
-    }
-    
-    public func json(from string: String, withOptions options: JSONSerialization.WritingOptions = .fragmentsAllowed) throws -> String {
+    public func json(from string: String,
+                     options: CSVParserOptions) throws -> String {
         let rows: [String] = string.components(separatedBy: NSCharacterSet.newlines).filter { !$0.isEmpty }
         
-        guard let header = rows.first?.colums else { throw CSVParserError.csvIsEmpty }
-        guard rows.count >= 2 else { throw CSVParserError.csvOnlyContainsHeader }
-        guard header.count == rows.last?.colums.count else { throw CSVParserError.csvAmountOfColumnsDoNotMatchHeader }
+        let valueSeparator = options.valueSeparator.value
+        
+        guard let header = rows.first?.colums(separatedBy: valueSeparator)
+            else { throw CSVParserError.csvIsEmpty }
+        
+        guard rows.count >= 2
+            else { throw CSVParserError.csvOnlyContainsHeader }
+        
+        guard header.count == rows.last?.colums(separatedBy: valueSeparator).count
+            else { throw CSVParserError.csvAmountOfColumnsDoNotMatchHeader }
         
         // Drop the first row, that should be the header.
-        let valueRows = rows.dropFirst()
+        let dataRows = rows.dropFirst()
         
-        let dictionaries = valueRows.map { row -> Dictionary<String, AnyObject> in
-            let stringValues = row.components(separatedBy: CSVParserConstants.csvSeparator)
+        // Setup up the NumberFormatter.
+        numberFormatter.decimalSeparator = options.numberDecimalSeparator
+        if let thousandSeparator = options.numberThousandSeparator {
+            numberFormatter.hasThousandSeparators = true
+            numberFormatter.thousandSeparator = thousandSeparator
+        }
+        
+        let dictionaries = dataRows.map { row -> Dictionary<String, AnyObject> in
+            let stringValues = row.colums(separatedBy: valueSeparator)
             let values = stringValues.map { string -> AnyObject in
                 guard let number = numberFormatter.number(from: string) else { return string as AnyObject }
                 return number
@@ -56,15 +105,15 @@ public final class CSVParser: CSVParserLogic {
             return Dictionary(keys: header, values: values)
         }
         
-        return dictionaries.toJSONString(options: options)
+        return dictionaries.toJSONString(options: options.jsonWritingOptions)
     }
     
     public func json(from file: String,
-                     withExtension fileExtension: String = "csv",
+                     withExtension fileExtension: String,
                      inBundle bundle: Bundle = Bundle.main,
-                     withOptions options: JSONSerialization.WritingOptions = .fragmentsAllowed) throws -> String {
+                     options: CSVParserOptions) throws -> String {
         let contents = try stringFromFile(bundle: bundle, fileName: file, fileExtension: fileExtension)
-        return try json(from: contents, withOptions: options)
+        return try json(from: contents, options: options)
     }
 }
 
@@ -86,14 +135,13 @@ private extension CSVParser {
 // MARK: Extensions
 
 private extension String  {
-    var colums: [String] {
-        components(separatedBy: CSVParserConstants.csvSeparator)
+    func colums(separatedBy separator: String) -> [String] {
+        components(separatedBy: separator)
     }
 }
 
 private extension Collection where Iterator.Element == [String: AnyObject] {
-    func toJSONString(options: JSONSerialization.WritingOptions = .prettyPrinted) -> String {
-        // TODO: Always an array?
+    func toJSONString(options: JSONSerialization.WritingOptions = .fragmentsAllowed) -> String {
         if let array = self as? [[String: AnyObject]],
            let data = try? JSONSerialization.data(withJSONObject: array, options: options),
            let string = String(data: data, encoding: String.Encoding.utf8) {

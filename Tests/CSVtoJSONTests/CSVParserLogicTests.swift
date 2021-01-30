@@ -21,7 +21,7 @@ final class CSVtoJSONTests: XCTestCase {
         """
         
         // When
-        let json = try? sut.json(from: csvString, withOptions: .fragmentsAllowed)
+        let json = try? sut.json(from: csvString)
         
         // Then
         XCTAssertNotNil(json)
@@ -29,10 +29,6 @@ final class CSVtoJSONTests: XCTestCase {
     
     func test_json_withStringWithDecimalNumber_shouldReturnValidJSON() {
         // Given
-        let numberFormatter = NumberFormatter()
-        numberFormatter.decimalSeparator = ","
-        sut = CSVParser(numberFormatter: numberFormatter)
-        
         let csvString = """
         brand;model;price
         Ferrari;LaFerrari;1000000,00
@@ -45,7 +41,7 @@ final class CSVtoJSONTests: XCTestCase {
             let price: Double
         }
         
-        let json = try! sut.json(from: csvString, withOptions: .fragmentsAllowed)
+        let json = try! sut.json(from: csvString, options: CSVParserOptions(numberDecimalSeparator: ","))
         let jsonData = json.data(using: .utf8)!
         let cars: [Car] = try! JSONDecoder().decode([Car].self, from: jsonData)
         
@@ -63,7 +59,7 @@ final class CSVtoJSONTests: XCTestCase {
         """
         
         // When & Then
-        XCTAssertThrowsError(try sut.json(from: csvString, withOptions: .fragmentsAllowed)) { error in
+        XCTAssertThrowsError(try sut.json(from: csvString)) { error in
             XCTAssertEqual(error as? CSVParserError, CSVParserError.csvOnlyContainsHeader)
         }
     }
@@ -73,7 +69,7 @@ final class CSVtoJSONTests: XCTestCase {
         let csvString = ""
         
         // When & Then
-        XCTAssertThrowsError(try sut.json(from: csvString, withOptions: .prettyPrinted)) { error in
+        XCTAssertThrowsError(try sut.json(from: csvString)) { error in
             XCTAssertEqual(error as? CSVParserError, CSVParserError.csvIsEmpty)
         }
     }
@@ -88,7 +84,7 @@ final class CSVtoJSONTests: XCTestCase {
         """
         
         // When & Then
-        XCTAssertThrowsError(try sut.json(from: csvString, withOptions: .prettyPrinted)) { error in
+        XCTAssertThrowsError(try sut.json(from: csvString)) { error in
             XCTAssertEqual(error as? CSVParserError, CSVParserError.csvAmountOfColumnsDoNotMatchHeader)
         }
     }
